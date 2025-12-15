@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Report Penjualan - Varsha Fruits & Goods</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    body { background: linear-gradient(135deg, #ecfdf5, #bbf7d0); font-family: 'Segoe UI', sans-serif; min-height: 100vh; }
+    .card { border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.12); }
+    .stat-card { background: linear-gradient(135deg, #16a34a, #22c55e); color: white; border-radius: 20px; }
+    .chart-container { background: white; border-radius: 20px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+    .top-product { background: #fff; border-radius: 15px; padding: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); border-left: 5px solid #16a34a; }
+    .badge-produk { font-size: 0.85rem; background: #d1fae5; color: #166534; }
+    .table thead { background: #16a34a; color: white; }
+  </style>
+</head>
+<body class="pt-4">
+
+<div class="container">
+  <div class="text-center mb-5">
+    <h1 class="display-3 fw-bold text-success mb-2">REPORT PENJUALAN</h1>
+    <h2 class="display-6 text-dark fw-bold">Varsha Fruits & Goods</h2>
+    <p class="text-muted fs-5">Dashboard Real-time • Update Otomatis</p>
+  </div>
+
+  <!-- STATISTIK UTAMA -->
+  <div class="row g-4 mb-5">
+    <div class="col-md-3">
+      <div class="card stat-card text-center p-4">
+        <h5 class="mb-2">Pendapatan Hari Ini</h5>
+        <h2 id="hariIni" class="mb-0 fw-bold">Rp 0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stat-card text-center p-4">
+        <h5 class="mb-2">Minggu Ini</h5>
+        <h2 id="mingguIni" class="mb-0 fw-bold">Rp 0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stat-card text-center p-4">
+        <h5 class="mb-2">Bulan Ini</h5>
+        <h2 id="bulanIni" class="mb-0 fw-bold">Rp 0</h2>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stat-card text-center p-4">
+        <h5 class="mb-2">Total Pesanan</h5>
+        <h2 id="totalPesanan" class="mb-0 fw-bold">0</h2>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHART & TOP PRODUK -->
+  <div class="row mb-5">
+    <div class="col-lg-8">
+      <div class="chart-container">
+        <h4 class="text-center text-success fw-bold mb-4">Grafik Penjualan 7 Hari Terakhir</h4>
+        <canvas id="chartHarian" height="100"></canvas>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card h-100 p-4">
+        <h4 class="text-success fw-bold text-center mb-4">Top 5 Produk Terlaris</h4>
+        <div id="topProduk" class="flex-grow-1"></div>
+        <div class="text-center mt-4">
+          <h5 class="text-success">Rata-rata Order</h5>
+          <h3 id="rataRata" class="text-success fw-bold">Rp 0</h3>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOMBOL DOWNLOAD -->
+  <div class="text-center mb-5">
+    <button onclick="downloadExcel()" class="btn btn-success btn-lg px-5 py-3 fw-bold shadow-lg rounded-pill">
+      DOWNLOAD SEMUA DATA EXCEL
+    </button>
+  </div>
+
+  <!-- RIWAYAT PESANAN + DETAIL PRODUK -->
+  <div class="card shadow-lg">
+    <div class="card-header bg-success text-white text-center py-4">
+      <h3 class="mb-0 fw-bold">Riwayat Semua Pesanan</h3>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th class="text-white">No</th>
+              <th class="text-white">Waktu</th>
+              <th class="text-white">Nama</th>
+              <th class="text-white">WA</th>
+              <th class="text-white">Produk yang Dipesan</th>
+              <th class="text-white">Total</th>
+            </tr>
+          </thead>
+          <tbody id="tabelPesanan">
+            <!-- DATA AKAN MUNCUL DI SINI -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// PASSWORD ADMIN REPORT
+if (prompt("Password Report:") !== "farid123") {
+  alert("Password salah! Akses ditolak.");
+  window.location.href = "index.html";
+}
+
+let riwayat = JSON.parse(localStorage.getItem('riwayat_pesanan') || '[]');
+
+// HITUNG STATISTIK
+function hitungStatistik() {
+  const sekarang = new Date();
+  const hariIni = sekarang.toISOString().slice(0,10);
+  const awalMinggu = new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate() - sekarang.getDay() + 1);
+  const awalBulan = new Date(sekarang.getFullYear(), sekarang.getMonth(), 1);
+
+  let pendapatanHari = 0, pendapatanMinggu = 0, pendapatanBulan = 0;
+  let totalPesanan = riwayat.length;
+
+  riwayat.forEach(p => {
+    const tglStr = p.waktu.split(' - ')[0].split(', ')[1]; // format: 15 Agustus 2025
+    const tglParts = tglStr.split(' ');
+    const bulanMap = {Januari:0,Februari:1,Maret:2,April:3,Mei:4,Juni:5,Juli:6,Agustus:7,September:8,Oktober:9,November:10,Desember:11};
+    const tgl = new Date(tglParts[2], bulanMap[tglParts[1]], tglParts[0]);
+
+    if (p.waktu.includes(hariIni.split('-').reverse().join(' '))) pendapatanHari += p.total;
+    if (tgl >= awalMinggu) pendapatanMinggu += p.total;
+    if (tgl >= awalBulan) pendapatanBulan += p.total;
+  });
+
+  document.getElementById('hariIni').textContent = "Rp " + pendapatanHari.toLocaleString();
+  document.getElementById('mingguIni').textContent = "Rp " + pendapatanMinggu.toLocaleString();
+  document.getElementById('bulanIni').textContent = "Rp " + pendapatanBulan.toLocaleString();
+  document.getElementById('totalPesanan').textContent = totalPesanan;
+  document.getElementById('rataRata').textContent = totalPesanan > 0 ? "Rp " + Math.round(pendapatanBulan / totalPesanan).toLocaleString() : "Rp 0";
+}
+
+// CHART 7 HARI
+function buatChart() {
+  const ctx = document.getElementById('chartHarian').getContext('2d');
+  const labels = [];
+  const data = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    const str = date.toLocaleDateString('id-ID', {weekday:'short', day:'numeric', month:'short'});
+    labels.push(str);
+
+    const total = riwayat
+      .filter(p => p.waktu.includes(str.split(' ')[0] + ", " + str.split(' ')[1] + " " + str.split(' ')[2]))
+      .reduce((sum, p) => sum + p.total, 0);
+    data.push(total);
+  }
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Pendapatan',
+        data: data,
+        backgroundColor: '#16a34a',
+        borderRadius: 12,
+        barThickness: 30
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { callback: value => 'Rp ' + value.toLocaleString() } } }
+    }
+  });
+}
+
+// TOP 5 PRODUK TERLARIS
+function topProduk() {
+  const hitung = {};
+  riwayat.forEach(p => {
+    if (p.items && Array.isArray(p.items)) {
+      p.items.forEach(item => {
+        hitung[item.nama] = (hitung[item.nama] || 0) + item.jumlah;
+      });
+    }
+  });
+
+  const sorted = Object.entries(hitung).sort((a,b) => b[1] - a[1]).slice(0,5);
+  document.getElementById('topProduk').innerHTML = sorted.map((item, i) => `
+    <div class="top-product mb-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <strong class="text-success fs-5">#${i+1} ${item[0]}</strong>
+        <span class="badge bg-success rounded-pill fs-6 px-3 py-2">${item[1]}x terjual</span>
+      </div>
+    </div>
+  `).join('') || '<p class="text-center text-muted">Belum ada penjualan</p>';
+}
+
+// RIWAYAT PESANAN + DETAIL PRODUK
+function renderTabel() {
+  const tbody = document.getElementById('tabelPesanan');
+  tbody.innerHTML = '';
+
+  if (riwayat.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted fs-4">Belum ada pesanan masuk</td></tr>';
+    return;
+  }
+
+  riwayat
+    .sort((a,b) => new Date(b.waktu.replace(/(\d+) (\w+) (\d+)/, '$3-$2-$1')) - new Date(a.waktu.replace(/(\d+) (\w+) (\d+)/, '$3-$2-$1')))
+    .forEach((p, i) => {
+      let produkHTML = "Tidak ada detail";
+      if (p.items && p.items.length > 0) {
+        produkHTML = p.items.map(item => 
+          `<span class="badge badge-produk me-1 mb-1">${item.nama} (${item.jumlah} ${item.satuan})</span>`
+        ).join('');
+      }
+
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><strong>${i+1}</strong></td>
+        <td><small>${p.waktu}</small></td>
+        <td><strong>${p.nama}</strong></td>
+        <td><a href="https://wa.me/${p.wa}" class="text-success text-decoration-none fw-bold">${p.wa}</a></td>
+        <td>${produkHTML}</td>
+        <td class="text-danger fw-bold fs-5">Rp ${p.total.toLocaleString()}</td>
+      `;
+      tbody.appendChild(row);
+    });
+}
+
+// DOWNLOAD EXCEL
+function downloadExcel() {
+  if (riwayat.length === 0) return alert("Belum ada data pesanan!");
+  
+  const dataExcel = riwayat.map((p, i) => {
+    const produkStr = p.items ? p.items.map(item => `${item.nama} ${item.jumlah}${item.satuan}`).join(', ') : '';
+    return {
+      No: i+1,
+      "Waktu Pemesanan": p.waktu,
+      Nama: p.nama,
+      "No WA": p.wa,
+      "Produk Dipesan": produkStr,
+      "Total (Rp)": p.total
+    };
+  });
+
+  const ws = XLSX.utils.json_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Penjualan");
+  XLSX.writeFile(wb, `Report_FreshFruitMart_${new Date().toISOString().slice(0,10)}.xlsx`);
+  alert("File Excel berhasil di-download!");
+}
+
+// INIT SEMUA
+hitungStatistik();
+buatChart();
+topProduk();
+renderTabel();
+</script>
+</body>
+</html>
